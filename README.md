@@ -3,7 +3,7 @@
 [![CI](https://github.com/becool2018/chaos-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_GITHUB_USERNAME/chaos-lab/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](./LICENSE)
 
-Chaos Lab is a dashboard + C++ sidecar that integrates with `messageEngine` (`libmessageengine.a`) to run local simulation scenarios, apply impairments, and inspect transport behavior over REST/WebSockets.
+Chaos Lab is a dashboard + C++ sidecar that integrates with [`messageEngine`](https://github.com/becool2018/messageEngine) (`libmessageengine.a`) to run local simulation scenarios, apply impairments, and inspect transport behavior over REST/WebSockets.
 
 > Replace `YOUR_GITHUB_USERNAME` in the CI badge URL with your own GitHub user/org after publishing.
 
@@ -15,9 +15,9 @@ Chaos Lab is a dashboard + C++ sidecar that integrates with `messageEngine` (`li
   - macOS (Homebrew): `brew install mbedtls`
   - Ubuntu/Debian: `sudo apt-get install -y build-essential pkg-config libmbedtls-dev`
   - Fedora/RHEL: `sudo dnf install -y gcc-c++ make pkgconf-pkg-config mbedtls-devel`
-- Optional: a local checkout of `messageEngine` (only needed when refreshing vendored artifacts)
+- Optional: a local checkout of [`messageEngine`](https://github.com/becool2018/messageEngine) (only needed when refreshing vendored artifacts)
 
-`chaos-lab` now supports a vendored engine snapshot at `third_party/messageengine` so sidecar builds can work even if `chaos-lab/messageEngine` is deleted.
+`chaos-lab` now supports a vendored engine snapshot at `third_party/messageengine` so sidecar builds can work even if your local [`messageEngine`](https://github.com/becool2018/messageEngine) checkout under `chaos-lab/messageEngine` is deleted.
 
 ## Linux Install (Ubuntu/Debian)
 
@@ -87,12 +87,12 @@ npm run build
 ```
 
 What this does:
-- `npm run sidecar:build`: resolves `messageEngine`, builds `libmessageengine.a`, then builds `sidecar/build/chaos_lab_sidecar`
+- `npm run sidecar:build`: resolves [`messageEngine`](https://github.com/becool2018/messageEngine), builds `libmessageengine.a`, then builds `sidecar/build/chaos_lab_sidecar`
 - `npm run build`: builds the dashboard production bundle (`dashboard/dist`)
 
-If no live `messageEngine` checkout is found, `npm run sidecar:build` falls back to vendored artifacts in `third_party/messageengine`.
+If no live [`messageEngine`](https://github.com/becool2018/messageEngine) checkout is found, `npm run sidecar:build` falls back to vendored artifacts in `third_party/messageengine`.
 
-## Refresh vendored messageEngine snapshot
+## Refresh vendored [messageEngine](https://github.com/becool2018/messageEngine) snapshot
 
 Use this when you want to pull latest engine changes, then update the copy used by `chaos-lab`:
 
@@ -110,7 +110,7 @@ npm run typecheck
 npm run lint
 ```
 
-Optional engine test suite (from `messageEngine` root):
+Optional engine test suite (from [`messageEngine`](https://github.com/becool2018/messageEngine) root):
 
 ```bash
 make tests
@@ -214,21 +214,21 @@ curl -s http://127.0.0.1:8787/api/run/summary
     curl -fsS http://127.0.0.1:8787/health || echo "sidecar health check failed"
     ```
 
-- `messageEngine not found`
+- [`messageEngine`](https://github.com/becool2018/messageEngine) not found
   - Run `bash scripts/resolve-message-engine.sh` to see the resolved path.
-  - Ensure `messageEngine` is either at `chaos-lab/messageEngine` or as a sibling `../messageEngine` if you want to rebuild from source.
+  - Ensure [`messageEngine`](https://github.com/becool2018/messageEngine) is either at `chaos-lab/messageEngine` or as a sibling `../messageEngine` if you want to rebuild from source.
   - Or rely on the vendored fallback at `third_party/messageengine`.
   - Or set `MESSAGE_ENGINE` explicitly:
     ```bash
     export MESSAGE_ENGINE=/absolute/path/to/messageEngine
     ```
 
-- `fatal: not a git repository` inside `messageEngine`
+- `fatal: not a git repository` inside [`messageEngine`](https://github.com/becool2018/messageEngine)
   - Verify you are in the actual engine clone:
     ```bash
     git -C /absolute/path/to/messageEngine rev-parse --is-inside-work-tree
     ```
-  - If this fails, reclone `messageEngine` and re-run `npm run sidecar:build`.
+  - If this fails, reclone [`messageEngine`](https://github.com/becool2018/messageEngine) and re-run `npm run sidecar:build`.
 
 - `mbedtls` headers or libraries not found (for example `mbedtls/ssl.h` missing)
   - Install dependencies:
@@ -253,7 +253,7 @@ curl -s http://127.0.0.1:8787/api/run/summary
     npm run sidecar:lib
     npm run sidecar:build
     ```
-  - Confirm the archive exists at `messageEngine/build/libmessageengine.a`.
+  - Confirm the archive exists at `messageEngine/build/libmessageengine.a` in your local [`messageEngine`](https://github.com/becool2018/messageEngine) checkout.
 
 - Dashboard starts but API calls fail
   - Check sidecar is running on `http://127.0.0.1:8787`.
@@ -285,7 +285,7 @@ curl -s http://127.0.0.1:8787/api/run/summary
 
 ## Docs
 
-- `docs/INTEGRATION.md`: messageEngine path/layout details
+- `docs/INTEGRATION.md`: [`messageEngine`](https://github.com/becool2018/messageEngine) path/layout details
 - `docs/PRODUCTION.md`: deployment and production hardening guidance
 - `docs/REPO_BOUNDARIES.md`: ownership boundaries between repos
 - `deploy/README.md`: reverse proxy examples
@@ -293,4 +293,4 @@ curl -s http://127.0.0.1:8787/api/run/summary
 
 ## License
 
-Chaos Lab is licensed under Apache 2.0 (`LICENSE`). `messageEngine` is licensed separately in its own repository.
+Chaos Lab is licensed under Apache 2.0 (`LICENSE`). [`messageEngine`](https://github.com/becool2018/messageEngine) is licensed separately in its own repository.
