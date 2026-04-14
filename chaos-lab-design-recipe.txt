@@ -1,0 +1,443 @@
+Chaos Lab Dashboard Design Handoff
+
+Purpose
+Build a user-friendly dashboard in a separate repo that uses messageEngine as the simulation core. The dashboard is tooling, not safety-critical product logic. The backend should expose a small control and event API; the frontend should focus on scenario setup, live visibility, and clear explanation of failures.
+
+Architecture Constraints
+- The backend service in this product must link to and use messageEngine.
+- Node simulation, transport behavior, impairments, retries, ordering, request/response behavior, and delivery events must come from messageEngine rather than being reimplemented in the dashboard repo.
+- The frontend is a tooling layer only and must consume a backend API; it must not implement its own simulation engine.
+- If a feature depends on network behavior truth, the source of truth must stay in the messageEngine-backed backend service.
+- The separate repo should own orchestration, API exposure, visualization, scenario management, and reporting, but not duplicate messageEngine core logic.
+
+Product Summary
+- Product name: Chaos Lab Dashboard
+- Primary value: let users simulate bad network conditions and understand what happened without reading raw logs
+- Primary users:
+  - engineers validating retry, ordering, expiry, and request/response behavior
+  - QA engineers running repeatable failure scenarios
+  - demo users who need a clear visual story
+- Core user jobs:
+  - pick or create a scenario
+  - run, pause, reset, replay a simulation
+  - see what failed and why
+  - inspect node, link, and message behavior
+  - export a summary of the run
+
+MVP Scope
+- Single-page dashboard
+- One active scenario at a time
+- 3-10 simulated nodes
+- Presets:
+  - Healthy
+  - Lossy
+  - High Latency
+  - Reordered
+  - Partitioned
+- Adjustable impairments:
+  - packet loss
+  - latency
+  - jitter
+  - duplication
+  - reordering
+  - partition toggle and duration
+- Visual topology map
+- Live event timeline
+- Summary metrics strip
+- Export run summary as JSON or CSV
+
+Non-Goals For V1
+- multi-user collaboration
+- full historical analytics platform
+- unlimited topology editor
+- browser-side simulation logic
+- safety certification of the dashboard UI
+
+UX Principles
+- Presets first, expert controls second
+- Plain language before protocol jargon
+- Visual explanation over dense tables
+- Make cause and effect visible together
+- Use progressive disclosure for advanced settings
+- Every empty state should explain the next step
+
+Information Architecture
+- Top bar:
+  - app identity
+  - current scenario name
+  - run status
+  - primary actions
+- Left panel:
+  - preset selection
+  - impairment controls
+  - advanced settings
+- Center panel:
+  - node and link map
+  - live status overlays
+- Right panel:
+  - event timeline
+  - filters
+  - event detail drawer
+- Bottom strip:
+  - core metrics
+  - health summary
+
+Primary User Flows
+
+1. Run a preset scenario
+- User opens dashboard
+- User chooses a preset like Lossy or Partitioned
+- User reviews default node topology
+- User clicks Start
+- User watches retries, drops, and timeouts appear live
+- User clicks a failure event for explanation
+- User exports the run summary
+
+2. Customize a scenario
+- User starts from a preset or blank scenario
+- User changes loss, latency, or partition values
+- User optionally opens Advanced settings for per-link tuning
+- User runs the simulation
+- User pauses and inspects a specific link or node
+- User resets or replays the run
+
+3. Diagnose a failure
+- User filters the timeline to ACK timeouts or Drops
+- User selects an event
+- User sees:
+  - source and destination
+  - message or request type
+  - impairment conditions active at that time
+  - nearby related events such as retry or duplicate drop
+- User uses the network map to inspect affected links
+
+Text Wireframe
+
+Page: Dashboard
+
++----------------------------------------------------------------------------------+
+| Chaos Lab Dashboard | Scenario: Lossy Link | Running | Start Pause Reset Export |
++----------------------------------------------------------------------------------+
+| Presets              |                      Network Map                      |   |
+| [Healthy]            |                                                        | E |
+| [Lossy]              |   Node A ---- Node B ---- Node C                      | v |
+| [High Latency]       |     |             \         /                          | e |
+| [Reordered]          |   Node D --------- Node E                             | n |
+| [Partitioned]        |                                                        | t |
+|                      |   Live overlays:                                       |   |
+| Basic Controls       |   - green pulse = normal delivery                     | T |
+| Loss      [ 20 ] %   |   - amber flash = retry                               | i |
+| Latency   [200 ] ms  |   - red flash = drop/timeout                          | m |
+| Jitter    [ 50 ] ms  |                                                        | e |
+| Duplicate [  5 ] %   |   Click node or link for details                      | l |
+| Reorder   [ 10 ] %   |                                                        | i |
+| Partition [ On  ]    |                                                        | n |
+|                      |                                                        | e |
+| Advanced ▾           |                                                        |   |
+| - per-link overrides |                                                        | F |
+| - transport backend  |                                                        | i |
+| - expiry defaults    |                                                        | l |
+| - request/reply mode |                                                        | t |
+|                      |                                                        | e |
+| Reset to preset      |                                                        | r |
++----------------------------------------------------------------------------------+
+| Sent | Delivered | Retries | ACK Timeouts | Duplicates | Expiry Drops | Latency |
++----------------------------------------------------------------------------------+
+
+Panel Specs
+
+Top Bar
+- Left:
+  - app name
+  - small subtitle: "Network reliability simulator"
+- Center:
+  - scenario name, editable
+  - run state badge:
+    - Idle
+    - Running
+    - Paused
+    - Completed
+    - Failed
+- Right:
+  - Start
+  - Pause
+  - Reset
+  - Replay
+  - Export
+- Primary CTA should be visually strongest
+
+Left Panel: Scenario Controls
+- Preset cards, not a plain dropdown
+- Basic controls use sliders with numeric input
+- Each control has 1-line helper text
+- Advanced settings live in an accordion
+- Add "Reset to preset" and "Save as custom scenario"
+
+Center Panel: Network Map
+- Primary visual surface
+- Nodes should feel clickable and alive, not static icons
+- Links should reflect status by thickness, color, and subtle motion
+- Node details drawer should show:
+  - node ID
+  - sent/received counts
+  - retries involving the node
+  - recent events
+- Link details drawer should show:
+  - impairment settings
+  - recent errors
+  - latency and drop stats
+
+Right Panel: Event Timeline
+- Reverse chronological list
+- Filter chips:
+  - All
+  - Retries
+  - ACK Timeouts
+  - Drops
+  - Reordering
+  - Partitions
+  - Responses
+- Event row fields:
+  - timestamp
+  - event type
+  - source -> destination
+  - short explanation
+- Clicking an event opens a detail drawer with:
+  - plain-language description
+  - related node and link
+  - related events around the same time
+
+Bottom Metrics Strip
+- Show 6-8 cards max
+- Recommended cards:
+  - messages sent
+  - messages delivered
+  - retries
+  - ACK timeouts
+  - duplicates dropped
+  - expiry drops
+  - average latency
+  - in-flight messages
+- Highlight abnormal metrics only when needed
+
+Content and Copy Guidance
+- Prefer "Message retried" over "RetryManager re-enqueue"
+- Prefer "Request timed out waiting for response" over internal protocol wording
+- Use helper text such as:
+  - "Packet loss randomly drops messages on this link."
+  - "Reordering delays some messages so later ones may arrive first."
+  - "Partitions simulate complete loss of connectivity for a period of time."
+- Add a friendly empty state:
+  - "Choose a preset or adjust the controls, then start the simulation."
+
+Visual Design System
+
+Design Direction
+- Light theme first
+- Calm, clean, modern
+- Avoid terminal-style black backgrounds
+- Avoid overcrowded diagnostic-monitor aesthetics
+- Use one strong accent color and meaningful status colors
+
+Typography
+- UI font: Manrope
+- Technical values and timestamps: IBM Plex Mono
+- Type scale:
+  - Page title: 28/34 semi-bold
+  - Section title: 18/24 semi-bold
+  - Body: 14/20 regular
+  - Helper text: 12/18 regular
+  - Metric value: 20/24 semi-bold
+  - Table/timeline mono values: 12/18 medium
+
+Color Tokens
+- Background:
+  - bg-page: #F5F7FA
+  - bg-panel: #FFFFFF
+  - bg-subtle: #EEF2F6
+- Text:
+  - text-primary: #152033
+  - text-secondary: #516074
+  - text-muted: #7A8798
+- Brand:
+  - brand-primary: #0F6D8C
+  - brand-soft: #D9EEF4
+- Status:
+  - success: #2E8B57
+  - warning: #D68A1F
+  - danger: #C64545
+  - info: #2A6BD8
+- Link/node states:
+  - node-idle: #C7D2DE
+  - node-active: #0F6D8C
+  - link-normal: #8AA3B5
+  - link-retry: #D68A1F
+  - link-failed: #C64545
+  - link-partitioned: #7A4DA3
+
+Spacing Tokens
+- 4px base grid
+- Space scale:
+  - xs: 4
+  - sm: 8
+  - md: 12
+  - lg: 16
+  - xl: 24
+  - xxl: 32
+- Panel padding:
+  - desktop: 16-24
+  - dense lists: 12-16
+
+Radius and Elevation
+- Radius:
+  - cards: 14px
+  - small controls: 10px
+  - pills/chips: 999px
+- Shadow:
+  - subtle card shadow only
+  - avoid heavy dark shadows
+
+Motion Guidelines
+- Keep motion purposeful
+- Use:
+  - gentle fade-in for events
+  - node pulse for active traffic
+  - link flash for retry or drop
+  - subtle drawer slide
+- Avoid constant motion that looks noisy or stressful
+
+Component Inventory
+- TopBar
+- RunControls
+- ScenarioPanel
+- PresetCardGrid
+- ImpairmentSliderField
+- AdvancedSettingsAccordion
+- NetworkMapCanvas
+- NodeCard
+- LinkOverlay
+- NodeDetailsDrawer
+- LinkDetailsDrawer
+- EventTimeline
+- EventFilterChips
+- EventRow
+- EventDetailsDrawer
+- MetricsStrip
+- MetricCard
+- RunSummaryModal
+- EmptyStatePanel
+
+Component Behavior Notes
+- PresetCardGrid:
+  - visually distinct cards with short description
+- ImpairmentSliderField:
+  - slider + numeric input + unit label
+- NetworkMapCanvas:
+  - must stay readable on laptop screens
+  - click target sizes should be generous
+- EventTimeline:
+  - should support large event volumes with virtualization if needed
+- MetricCard:
+  - value first, label second, optional trend or delta
+
+Accessibility Guidance
+- Color cannot be the only signal
+- Add icons or labels for warning/failure states
+- Keyboard-accessible drawers and filters
+- Sufficient contrast on all badges and chips
+- Respect reduced-motion preferences
+
+Frontend Build Plan
+
+Recommended Frontend Stack
+- React
+- TypeScript
+- Vite or Next.js app shell
+- Zustand or Redux Toolkit for app state
+- TanStack Query for backend polling or fetches
+- WebSocket client for live event stream
+- React Flow, Cytoscape, or a custom SVG/canvas layer for topology view
+- Tailwind or CSS Modules for styling
+
+Recommended Backend Contract
+- Keep backend separate from UI repo if desired, but UI assumes:
+  - REST for scenario CRUD and run controls
+  - WebSocket for live event stream
+- Example endpoints:
+  - GET /api/presets
+  - GET /api/scenario/current
+  - POST /api/scenario/current
+  - POST /api/run/start
+  - POST /api/run/pause
+  - POST /api/run/reset
+  - GET /api/run/summary
+  - GET /api/topology
+  - WS /api/events
+
+Suggested Frontend Folder Structure
+- src/
+  - app/
+  - pages/ or routes/
+  - components/
+    - layout/
+    - scenario/
+    - topology/
+    - timeline/
+    - metrics/
+    - drawers/
+  - features/
+    - presets/
+    - run-control/
+    - event-stream/
+    - topology/
+    - summary/
+  - hooks/
+  - services/
+    - api/
+    - websocket/
+  - store/
+  - styles/
+  - types/
+  - utils/
+
+Implementation Order
+1. App shell and page layout
+2. Top bar and run controls
+3. Left scenario panel with preset cards and sliders
+4. Metrics strip
+5. Event timeline with mock data
+6. Network map with mock topology
+7. Drawers for node, link, and event detail
+8. Backend integration:
+  - presets
+  - current scenario
+  - run controls
+  - metrics
+  - live events
+9. Polish:
+  - empty states
+  - loading states
+  - motion
+  - export flow
+
+Design Milestones For The Other AI
+1. Turn this handoff into a low-fidelity mockup
+2. Build a clickable static prototype with mock data
+3. Validate the 3 primary flows:
+  - run preset
+  - customize scenario
+  - diagnose failure
+4. Only then wire to the backend
+
+Definition Of Done For V1 UI
+- A first-time user can start a preset scenario without help
+- The main dashboard is understandable without reading docs
+- Users can identify why a run failed from the timeline and detail drawers
+- Advanced settings do not overwhelm the default screen
+- The product looks intentional, friendly, and demo-ready
+
+Notes For Engineering
+- Keep simulation logic in the backend service, not the browser
+- Treat the UI as tooling layered on top of messageEngine
+- Prefer mock-data-first development to settle the UX before API coupling
+- Do not expose every low-level transport knob in the default view

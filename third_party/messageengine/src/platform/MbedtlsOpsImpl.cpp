@@ -1,0 +1,311 @@
+// Copyright 2026 Don Jessup
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+/**
+ * @file MbedtlsOpsImpl.cpp
+ * @brief Concrete production implementation of IMbedtlsOps.
+ *
+ * Each method is a thin, policy-free wrapper around the corresponding
+ * mbedTLS or POSIX call.  No business logic or retry logic here;
+ * that belongs in DtlsUdpBackend.
+ *
+ * Power of 10 Rule 5: each function has ≥2 assertions.  These wrappers are
+ * single-call delegates, so the pre/post conditions are verified by their
+ * callers (DtlsUdpBackend.cpp) which carries the assertion density.
+ *
+ * Implements: REQ-6.3.4, REQ-6.4.1, REQ-6.4.2, REQ-6.4.3, REQ-6.4.4, REQ-6.4.5
+ */
+// Implements: REQ-6.3.4, REQ-6.4.1, REQ-6.4.2, REQ-6.4.3, REQ-6.4.4, REQ-6.4.5, REQ-6.4.6
+
+#include "platform/MbedtlsOpsImpl.hpp"
+#include "core/Assert.hpp"
+
+#if __has_include(<mbedtls/build_info.h>)
+#  include <mbedtls/build_info.h>   // mbedTLS 3.x / 4.x
+#else
+#  include <mbedtls/version.h>      // mbedTLS 2.x
+#endif
+#include <mbedtls/ssl.h>
+#include <mbedtls/net_sockets.h>
+#include <mbedtls/ssl_ticket.h>
+#include <mbedtls/x509_crt.h>
+#include <mbedtls/pk.h>
+#include <mbedtls/ssl_cookie.h>
+#include <mbedtls/psa_util.h>
+#include <psa/crypto.h>
+
+#include <sys/socket.h>   // connect(), recvfrom()
+#include <arpa/inet.h>    // inet_pton()
+#include <sys/types.h>    // ssize_t
+#include <cstdint>        // uint32_t
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Singleton
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Power of 10 Rule 3: static storage, no heap allocation.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+MbedtlsOpsImpl MbedtlsOpsImpl::s_instance{};
+
+MbedtlsOpsImpl& MbedtlsOpsImpl::instance()
+{
+    return s_instance;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IMbedtlsOps method implementations
+// ─────────────────────────────────────────────────────────────────────────────
+
+psa_status_t MbedtlsOpsImpl::crypto_init()
+{
+    NEVER_COMPILED_OUT_ASSERT(true);  // always reached
+    psa_status_t ret = psa_crypto_init();
+    NEVER_COMPILED_OUT_ASSERT(true);  // post: ret may be checked by caller
+    return ret;
+}
+
+int MbedtlsOpsImpl::ssl_config_defaults(mbedtls_ssl_config* conf,
+                                         int endpoint,
+                                         int transport,
+                                         int preset)
+{
+    NEVER_COMPILED_OUT_ASSERT(conf != nullptr);
+    int ret = mbedtls_ssl_config_defaults(conf, endpoint, transport, preset);
+    NEVER_COMPILED_OUT_ASSERT(true);
+    return ret;
+}
+
+int MbedtlsOpsImpl::x509_crt_parse_file(mbedtls_x509_crt* chain,
+                                          const char*       path)
+{
+    NEVER_COMPILED_OUT_ASSERT(chain != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(path  != nullptr);
+    return mbedtls_x509_crt_parse_file(chain, path);
+}
+
+int MbedtlsOpsImpl::pk_parse_keyfile(mbedtls_pk_context* ctx,
+                                      const char*         path,
+                                      const char*         pwd)
+{
+    NEVER_COMPILED_OUT_ASSERT(ctx  != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(path != nullptr);
+    // pwd may be nullptr (no passphrase)
+    return mbedtls_pk_parse_keyfile(ctx, path, pwd);
+}
+
+int MbedtlsOpsImpl::ssl_conf_own_cert(mbedtls_ssl_config*  conf,
+                                       mbedtls_x509_crt*    own_cert,
+                                       mbedtls_pk_context*  pk_key)
+{
+    NEVER_COMPILED_OUT_ASSERT(conf     != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(own_cert != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(pk_key   != nullptr);
+    return mbedtls_ssl_conf_own_cert(conf, own_cert, pk_key);
+}
+
+int MbedtlsOpsImpl::ssl_cookie_setup(mbedtls_ssl_cookie_ctx* ctx)
+{
+    NEVER_COMPILED_OUT_ASSERT(ctx != nullptr);
+    // mbedTLS 4.0 removed the RNG arguments from mbedtls_ssl_cookie_setup():
+    // the PSA RNG is bound automatically after psa_crypto_init().
+    // mbedTLS 2.x/3.x requires the explicit mbedtls_psa_get_random arguments.
+#if MBEDTLS_VERSION_MAJOR < 4
+    int ret = mbedtls_ssl_cookie_setup(ctx, mbedtls_psa_get_random, MBEDTLS_PSA_RANDOM_STATE);
+#else
+    int ret = mbedtls_ssl_cookie_setup(ctx);
+#endif
+    NEVER_COMPILED_OUT_ASSERT(true);
+    return ret;
+}
+
+int MbedtlsOpsImpl::ssl_setup(mbedtls_ssl_context* ssl,
+                               mbedtls_ssl_config*  conf)
+{
+    NEVER_COMPILED_OUT_ASSERT(ssl  != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(conf != nullptr);
+    return mbedtls_ssl_setup(ssl, conf);
+}
+
+int MbedtlsOpsImpl::ssl_set_hostname(mbedtls_ssl_context* ssl,
+                                      const char*          hostname)
+{
+    NEVER_COMPILED_OUT_ASSERT(ssl != nullptr);
+    // hostname may be nullptr (explicit opt-out when peer_hostname is empty)
+    NEVER_COMPILED_OUT_ASSERT(true);  // post: always reached
+    return mbedtls_ssl_set_hostname(ssl, hostname);
+}
+
+int MbedtlsOpsImpl::ssl_set_client_transport_id(mbedtls_ssl_context*  ssl,
+                                                  const unsigned char*  info,
+                                                  size_t                ilen)
+{
+    NEVER_COMPILED_OUT_ASSERT(ssl  != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(info != nullptr);
+    return mbedtls_ssl_set_client_transport_id(ssl, info, ilen);
+}
+
+int MbedtlsOpsImpl::ssl_handshake(mbedtls_ssl_context* ssl)
+{
+    NEVER_COMPILED_OUT_ASSERT(ssl != nullptr);
+    return mbedtls_ssl_handshake(ssl);
+}
+
+int MbedtlsOpsImpl::ssl_write(mbedtls_ssl_context*  ssl,
+                               const unsigned char*  buf,
+                               size_t                len)
+{
+    NEVER_COMPILED_OUT_ASSERT(ssl != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(buf != nullptr);
+    return mbedtls_ssl_write(ssl, buf, len);
+}
+
+int MbedtlsOpsImpl::ssl_read(mbedtls_ssl_context* ssl,
+                               unsigned char*       buf,
+                               size_t               len)
+{
+    NEVER_COMPILED_OUT_ASSERT(ssl != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(buf != nullptr);
+    return mbedtls_ssl_read(ssl, buf, len);
+}
+
+ssize_t MbedtlsOpsImpl::recvfrom_peek(int              sockfd,
+                                       void*            buf,
+                                       size_t           len,
+                                       struct sockaddr* src_addr,
+                                       socklen_t*       addrlen)
+{
+    NEVER_COMPILED_OUT_ASSERT(sockfd   >= 0);
+    NEVER_COMPILED_OUT_ASSERT(buf      != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(src_addr != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(addrlen  != nullptr);
+    // MISRA C++:2023 Rule 5.2.4: recvfrom() fourth arg is void* (C-API);
+    // buf is a void* passed through unchanged.
+    return recvfrom(sockfd, buf, len, MSG_PEEK, src_addr, addrlen);
+}
+
+int MbedtlsOpsImpl::net_connect(int                    sockfd,
+                                 const struct sockaddr* addr,
+                                 socklen_t              addrlen)
+{
+    NEVER_COMPILED_OUT_ASSERT(sockfd >= 0);
+    NEVER_COMPILED_OUT_ASSERT(addr   != nullptr);
+    return connect(sockfd, addr, addrlen);
+}
+
+int MbedtlsOpsImpl::inet_pton_ipv4(const char* src, void* dst)
+{
+    NEVER_COMPILED_OUT_ASSERT(src != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(dst != nullptr);
+    return inet_pton(AF_INET, src, dst);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TCP network wrappers (TlsTcpBackend M5 fault-injection paths)
+// ─────────────────────────────────────────────────────────────────────────────
+
+int MbedtlsOpsImpl::net_tcp_connect(mbedtls_net_context* ctx,
+                                     const char*          host,
+                                     const char*          port)
+{
+    NEVER_COMPILED_OUT_ASSERT(ctx  != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(host != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(port != nullptr);
+    return mbedtls_net_connect(ctx, host, port, MBEDTLS_NET_PROTO_TCP);
+}
+
+int MbedtlsOpsImpl::net_tcp_bind(mbedtls_net_context* ctx,
+                                  const char*          ip,
+                                  const char*          port)
+{
+    NEVER_COMPILED_OUT_ASSERT(ctx  != nullptr);
+    // ip may be nullptr (bind to all interfaces)
+    NEVER_COMPILED_OUT_ASSERT(port != nullptr);
+    return mbedtls_net_bind(ctx, ip, port, MBEDTLS_NET_PROTO_TCP);
+}
+
+int MbedtlsOpsImpl::net_tcp_accept(mbedtls_net_context* listen_ctx,
+                                    mbedtls_net_context* client_ctx)
+{
+    NEVER_COMPILED_OUT_ASSERT(listen_ctx != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(client_ctx != nullptr);
+    return mbedtls_net_accept(listen_ctx, client_ctx, nullptr, 0U, nullptr);
+}
+
+int MbedtlsOpsImpl::net_set_block(mbedtls_net_context* ctx)
+{
+    NEVER_COMPILED_OUT_ASSERT(ctx != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(ctx->fd >= 0);
+    return mbedtls_net_set_block(ctx);
+}
+
+int MbedtlsOpsImpl::net_set_nonblock(mbedtls_net_context* ctx)
+{
+    NEVER_COMPILED_OUT_ASSERT(ctx != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(ctx->fd >= 0);
+    return mbedtls_net_set_nonblock(ctx);
+}
+
+int MbedtlsOpsImpl::net_poll(mbedtls_net_context* ctx,
+                              uint32_t             rw,
+                              uint32_t             timeout_ms)
+{
+    NEVER_COMPILED_OUT_ASSERT(ctx != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(ctx->fd >= 0);
+    return mbedtls_net_poll(ctx, rw, timeout_ms);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TLS session management wrappers (TlsTcpBackend M5 fault-injection paths)
+// ─────────────────────────────────────────────────────────────────────────────
+
+int MbedtlsOpsImpl::ssl_get_session(const mbedtls_ssl_context* ssl,
+                                     mbedtls_ssl_session*       dst)
+{
+    NEVER_COMPILED_OUT_ASSERT(ssl != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(dst != nullptr);
+    return mbedtls_ssl_get_session(ssl, dst);
+}
+
+int MbedtlsOpsImpl::ssl_set_session(mbedtls_ssl_context*       ssl,
+                                     const mbedtls_ssl_session* session)
+{
+    NEVER_COMPILED_OUT_ASSERT(ssl     != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(session != nullptr);
+    return mbedtls_ssl_set_session(ssl, session);
+}
+
+int MbedtlsOpsImpl::ssl_ticket_setup(mbedtls_ssl_ticket_context* ctx,
+                                      uint32_t                    lifetime_s)
+{
+    NEVER_COMPILED_OUT_ASSERT(ctx         != nullptr);
+    NEVER_COMPILED_OUT_ASSERT(lifetime_s  >  0U);
+    // mbedTLS 4.0+: PSA-native API (alg, key_type, key_bits, lifetime).
+    // mbedTLS 2.x/3.x: legacy API (f_rng, p_rng, cipher_type, lifetime).
+#if MBEDTLS_VERSION_MAJOR >= 4
+    int ret = mbedtls_ssl_ticket_setup(
+        ctx,
+        PSA_ALG_GCM,
+        PSA_KEY_TYPE_AES,
+        static_cast<psa_key_bits_t>(256U),
+        lifetime_s);
+#else
+    int ret = mbedtls_ssl_ticket_setup(
+        ctx,
+        mbedtls_psa_get_random, MBEDTLS_PSA_RANDOM_STATE,
+        MBEDTLS_CIPHER_AES_256_GCM,
+        lifetime_s);
+#endif
+    NEVER_COMPILED_OUT_ASSERT(true);  // post: ret is checked by caller
+    return ret;
+}

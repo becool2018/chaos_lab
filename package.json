@@ -1,0 +1,24 @@
+{
+  "name": "chaos-lab",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Chaos Lab dashboard + messageEngine-backed simulation",
+  "type": "module",
+  "scripts": {
+    "typecheck:contracts": "tsc -p tsconfig.contracts.json",
+    "dev": "npm run dev -w dashboard",
+    "build": "npm run build -w dashboard",
+    "typecheck": "npm run typecheck:contracts && npm run typecheck -w dashboard",
+    "lint": "npm run lint -w dashboard",
+    "sidecar:lib": "bash scripts/build-messageengine-lib.sh",
+    "sidecar:vendor": "bash scripts/vendor-messageengine.sh",
+    "sidecar:build": "bash scripts/build-sidecar.sh",
+    "sidecar": "npm run sidecar:build && ./sidecar/build/chaos_lab_sidecar"
+  },
+  "workspaces": [
+    "dashboard"
+  ],
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

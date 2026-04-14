@@ -1,0 +1,18 @@
+node_modules/
+dist/
+sidecar/build/
+*.log
+.DS_Store
+.env
+.env.local
+
+# Dashboard local/dev artifacts
+dashboard/node_modules/
+dashboard/dist/
+dashboard/dist-ssr/
+dashboard/.env.local
+dashboard/*.local
+
+# messageEngine is a separate repository — clone locally; do not commit it into chaos-lab.
+/messageEngine/
+/messageEngine.bak/
